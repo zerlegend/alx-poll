@@ -1,9 +1,6 @@
-import type { Metadata } from 'next';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'Polls - ALX Poll',
-  description: 'View and participate in polls',
-};
+import ProtectedRoute from '@/components/protected-route';
 
 export default function PollsLayout({
   children,
@@ -11,8 +8,10 @@ export default function PollsLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="min-h-screen bg-background">
-      {children}
-    </div>
+    <ProtectedRoute>
+      <div className="min-h-screen bg-background">
+        {children}
+      </div>
+    </ProtectedRoute>
   );
 }

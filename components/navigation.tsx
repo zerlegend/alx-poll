@@ -2,18 +2,22 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/auth-context';
 
 export default function Navigation() {
   const pathname = usePathname();
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // This would be from auth context in a real app
+  const router = useRouter();
+  const { user, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // For demo purposes only - toggle login state
-  const toggleLogin = () => setIsLoggedIn(!isLoggedIn);
+  
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/');
+  };
 
   const navItems = [
     { name: 'Home', href: '/' },
@@ -42,7 +46,7 @@ export default function Navigation() {
           </div>
           
           <div className="hidden sm:ml-6 sm:flex sm:items-center">
-            {isLoggedIn ? (
+            {user ? (
               <div className="flex items-center space-x-4">
                 <Link href="/polls/create">
                   <Button variant="outline">Create Poll</Button>
@@ -65,7 +69,7 @@ export default function Navigation() {
                       <Button 
                         variant="ghost" 
                         className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
-                        onClick={toggleLogin} // For demo only
+                        onClick={handleSignOut}
                       >
                         Logout
                       </Button>
@@ -120,7 +124,7 @@ export default function Navigation() {
                 {item.name}
               </Link>
             ))}
-            {isLoggedIn && (
+            {user && (
               <Link
                 href="/polls/create"
                 className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-muted-foreground hover:bg-muted hover:border-muted-foreground"
@@ -131,7 +135,7 @@ export default function Navigation() {
             )}
           </div>
           <div className="pt-4 pb-3 border-t border-border">
-            {isLoggedIn ? (
+            {user ? (
               <div className="space-y-1">
                 <Link
                   href="/profile"
@@ -150,7 +154,7 @@ export default function Navigation() {
                 <button
                   className="block w-full text-left pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-red-500 hover:bg-red-50 hover:border-red-300"
                   onClick={() => {
-                    toggleLogin(); // For demo only
+                    handleSignOut();
                     setMobileMenuOpen(false);
                   }}
                 >

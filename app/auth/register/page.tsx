@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/auth-context';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -30,6 +31,15 @@ const formSchema = z.object({
 export default function RegisterPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { signUp, user } = useAuth();
+  
+  useEffect(() => {
+    // Redirect if user is already logged in
+    if (user) {
+      router.push('/polls');
+    }
+  }, [user, router]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -43,15 +53,31 @@ export default function RegisterPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
+    setError(null);
     
-    // TODO: Implement actual registration logic
-    console.log(values);
-    
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const { data, error } = await signUp(values.email, values.password);
+      
+      if (error) {
+        setError(error.message);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Check if email confirmation is required
+      if (data.user && !data.user.email_confirmed_at) {
+        // Registration successful but email needs confirmation
+        setIsLoading(false);
+        router.push('/auth/login?registered=true&confirmation=required');
+      } else {
+        // Registration successful and no confirmation needed
+        setIsLoading(false);
+        router.push('/auth/login?registered=true');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.');
       setIsLoading(false);
-      router.push('/auth/login');
-    }, 1000);
+    }
   }
 
   return (
@@ -62,6 +88,11 @@ export default function RegisterPage() {
           <CardDescription className="text-center">Create a new account</CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md mb-4">
+              {error}
+            </div>
+          )}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField

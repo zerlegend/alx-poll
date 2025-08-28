@@ -10,6 +10,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/auth-context';
+import { useEffect } from 'react';
 
 const formSchema = z.object({
   email: z.string().email({
@@ -23,6 +25,28 @@ const formSchema = z.object({
 export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
+  const { signIn, user, resendConfirmationEmail } = useAuth();
+  
+  useEffect(() => {
+    // Redirect if user is already logged in
+    if (user) {
+      router.push('/polls');
+    }
+    
+    // Check if redirected from registration
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('registered') === 'true') {
+      if (urlParams.get('confirmation') === 'required') {
+        setSuccessMessage('Registration successful! Please check your email to confirm your account before logging in.');
+      } else {
+        setSuccessMessage('Registration successful! Please log in with your new account.');
+      }
+    }
+  }, [user, router]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -34,15 +58,29 @@ export default function LoginPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
+    setError(null);
     
-    // TODO: Implement actual authentication logic
-    console.log(values);
-    
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const { error } = await signIn(values.email, values.password);
+      
+      if (error) {
+        // Handle specific error for email not confirmed
+        if (error.message.includes('Email not confirmed')) {
+          setError('Your email address has not been confirmed. Please check your inbox and click the confirmation link before logging in.');
+          setUnconfirmedEmail(values.email);
+        } else {
+          setError(error.message);
+          setUnconfirmedEmail(null);
+        }
+        setIsLoading(false);
+        return;
+      }
+      
+      // Successful login will trigger the useEffect to redirect
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.');
       setIsLoading(false);
-      router.push('/polls');
-    }, 1000);
+    }
   }
 
   return (
@@ -53,6 +91,43 @@ export default function LoginPage() {
           <CardDescription className="text-center">Enter your credentials to access your account</CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md mb-4">
+              {error}
+              {unconfirmedEmail && (
+                <div className="mt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={async () => {
+                      setResendLoading(true);
+                      try {
+                        const { error } = await resendConfirmationEmail(unconfirmedEmail);
+                        if (error) {
+                          setError(`Failed to resend confirmation email: ${error.message}`);
+                        } else {
+                          setSuccessMessage('Confirmation email has been resent. Please check your inbox.');
+                          setError(null);
+                        }
+                      } catch (err) {
+                        setError('An unexpected error occurred while resending the confirmation email.');
+                      } finally {
+                        setResendLoading(false);
+                      }
+                    }}
+                    disabled={resendLoading}
+                  >
+                    {resendLoading ? 'Sending...' : 'Resend confirmation email'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          {successMessage && (
+            <div className="bg-green-100 text-green-800 text-sm p-3 rounded-md mb-4">
+              {successMessage}
+            </div>
+          )}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
