@@ -1,0 +1,146 @@
+{
+  "project": {
+    "name": "ALX Poll",
+    "description": "A Next.js application for creating and sharing polls"
+  },
+  "structure": {
+    "app": {
+      "description": "Next.js App Router structure with route segments as directories",
+      "routes": [
+        {
+          "path": "/app/page.tsx",
+          "description": "Home page route"
+        },
+        {
+          "path": "/app/polls",
+          "description": "Poll-related routes including listing, viewing, and creating polls"
+        },
+        {
+          "path": "/app/auth",
+          "description": "Authentication routes for login and registration"
+        },
+        {
+          "path": "/app/api",
+          "description": "API routes for backend functionality"
+        }
+      ]
+    },
+    "components": {
+      "description": "Reusable UI components",
+      "ui": "UI components from shadcn/ui library",
+      "custom": "Custom components specific to the application"
+    },
+    "contexts": {
+      "description": "React context providers for state management",
+      "auth-context.tsx": "Authentication context for Supabase integration"
+    },
+    "lib": {
+      "description": "Utility functions and service integrations",
+      "supabase.ts": "Supabase client configuration"
+    }
+  },
+  "patterns": {
+    "authentication": {
+      "provider": "Supabase",
+      "implementation": "contexts/auth-context.tsx",
+      "features": ["Email/Password Auth", "Email Confirmation", "Protected Routes"]
+    },
+    "forms": {
+      "libraries": ["react-hook-form", "@hookform/resolvers/zod", "zod"],
+      "validation": "Zod schema validation",
+      "ui": "shadcn/ui form components"
+    },
+    "routing": {
+      "type": "Next.js App Router",
+      "conventions": [
+        "'use client' directive for client components",
+        "layout.tsx for shared layouts",
+        "page.tsx for route components",
+        "loading.tsx for loading states",
+        "error.tsx for error handling"
+      ]
+    },
+    "database": {
+      "provider": "Supabase",
+      "tables": ["users", "polls", "options", "votes"]
+    },
+    "styling": {
+      "framework": "Tailwind CSS",
+      "components": "shadcn/ui"
+    }
+  },
+  "conventions": {
+    "components": {
+      "naming": "PascalCase for component names",
+      "organization": "Functional components with TypeScript"
+    },
+    "clientComponents": {
+      "directive": "'use client' at the top of client components",
+      "usage": "Used for interactive UI elements and hooks"
+    },
+    "serverComponents": {
+      "default": "All components are server components by default",
+      "usage": "Used for data fetching and static rendering"
+    },
+    "authentication": {
+      "protectedRoutes": "Use ProtectedRoute component to wrap authenticated routes",
+      "redirects": "Unauthenticated users redirected to /auth/login"
+    },
+    "forms": {
+      "validation": "Define zod schema for form validation",
+      "submission": "Use react-hook-form's handleSubmit for form submission",
+      "errors": "Display form errors using FormMessage component"
+    }
+  },
+  "codeGeneration": {
+    "newPoll": {
+      "form": {
+        "fields": [
+          {
+            "name": "title",
+            "type": "string",
+            "validation": "Required, min 5 characters"
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "validation": "Optional"
+          },
+          {
+            "name": "options",
+            "type": "array",
+            "validation": "Minimum 2 options required"
+          },
+          {
+            "name": "endDate",
+            "type": "date",
+            "validation": "Optional, must be in the future"
+          },
+          {
+            "name": "isPublic",
+            "type": "boolean",
+            "validation": "Required"
+          }
+        ]
+      },
+      "api": {
+        "endpoint": "/api/polls",
+        "method": "POST",
+        "authentication": "Required"
+      }
+    },
+    "pollList": {
+      "display": {
+        "fields": ["title", "description", "createdBy", "createdAt", "votesCount"],
+        "sorting": ["newest", "popular", "ending soon"]
+      }
+    },
+    "vote": {
+      "api": {
+        "endpoint": "/api/polls/{id}/vote",
+        "method": "POST",
+        "authentication": "Required"
+      }
+    }
+  }
+}
