@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "db:apply": "node supabase/apply-schema.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
