@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/auth-context';
 
 export default function Navigation() {
@@ -59,6 +59,7 @@ export default function Navigation() {
                     </Avatar>
                   </DialogTrigger>
                   <DialogContent className="w-72">
+                    <DialogTitle className="sr-only">User Menu</DialogTitle>
                     <div className="flex flex-col space-y-2 py-4">
                       <Link href="/profile">
                         <Button variant="ghost" className="w-full justify-start">Profile</Button>

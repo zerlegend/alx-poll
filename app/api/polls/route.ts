@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 // GET handler for fetching polls
@@ -10,7 +10,29 @@ export async function GET(request: NextRequest) {
   const page = parseInt(searchParams.get('page') || '1');
   
   // Create a Supabase client for the current request
-  const supabase = createRouteHandlerClient({ cookies });
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    }
+  );
   
   try {
     // Check if user is authenticated (for private polls)
@@ -44,7 +66,7 @@ export async function GET(request: NextRequest) {
         query = query.order('votes', { foreignTable: 'votes', ascending: false });
         break;
       case 'ending':
-        query = query.order('end_date', { ascending: true, nullsLast: true });
+        query = query.order('end_date', { ascending: true });
         break;
       case 'newest':
       default:
@@ -73,7 +95,7 @@ export async function GET(request: NextRequest) {
       createdAt: poll.created_at,
       endDate: poll.end_date,
       isPublic: poll.is_public,
-      createdBy: poll.profiles.name,
+      createdBy: poll.profiles[0].name,
       optionsCount: poll.options.length,
       votesCount: poll.votes.length,
     }));
@@ -82,8 +104,8 @@ export async function GET(request: NextRequest) {
       polls: formattedPolls,
       page,
       limit,
-      total: count,
-      hasMore: count > (page * limit)
+      total: count || 0,
+      hasMore: (count || 0) > (page * limit)
     });
   } catch (error) {
     console.error('Error in polls API:', error);
@@ -94,13 +116,45 @@ export async function GET(request: NextRequest) {
 // POST handler for creating a new poll
 export async function POST(request: NextRequest) {
   // Create a Supabase client for the current request
-  const supabase = createRouteHandlerClient({ cookies });
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    }
+  );
   
   try {
     // Check if user is authenticated
     const { data: { session } } = await supabase.auth.getSession();
     
+    // Debug: Log cookie information
+    const allCookies = cookieStore.getAll();
+    console.log('API - All cookies:', allCookies.map(c => c.name));
+    console.log('API - Session check:', { 
+      hasSession: !!session, 
+      userId: session?.user?.id,
+      userEmail: session?.user?.email 
+    });
+    
     if (!session) {
+      console.log('No session found, returning 401');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     

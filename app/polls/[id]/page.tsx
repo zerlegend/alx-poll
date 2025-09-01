@@ -5,38 +5,52 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
-// Mock poll data
-const mockPollData = {
-  id: '1',
-  title: 'What is your favorite programming language?',
-  description: 'Vote for your preferred programming language',
-  createdBy: 'John Doe',
-  createdAt: '2023-06-15',
-  options: [
-    { id: '1', text: 'JavaScript', votes: 15 },
-    { id: '2', text: 'Python', votes: 12 },
-    { id: '3', text: 'Java', votes: 8 },
-    { id: '4', text: 'C#', votes: 7 },
-  ],
-  totalVotes: 42,
-};
+interface PollOption {
+  id: string;
+  text: string;
+  votes: number;
+}
 
-export default function PollPage({ params }: { params: { id: string } }) {
+interface Poll {
+  id: string;
+  title: string;
+  description: string;
+  createdBy: string;
+  createdAt: string;
+  options: PollOption[];
+  totalVotes: number;
+}
+
+export default function PollPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const [poll, setPoll] = useState(mockPollData);
+  const [poll, setPoll] = useState<Poll | null>(null);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // In a real app, fetch the poll data based on the ID
+  // Fetch the poll data based on the ID
   useEffect(() => {
-    // This would be an API call in a real application
-    console.log(`Fetching poll with ID: ${params.id}`);
-    // For now, we'll just use the mock data
-  }, [params.id]);
+    const fetchPoll = async () => {
+      try {
+        const { id } = await params;
+        const response = await fetch(`/api/polls/${id}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch poll');
+        }
+        const pollData = await response.json();
+        setPoll(pollData);
+      } catch (error) {
+        console.error('Error fetching poll:', error);
+        setError('Failed to load poll');
+      }
+    };
+
+    fetchPoll();
+  }, [params]);
 
   const handleVote = () => {
-    if (!selectedOption) return;
+    if (!selectedOption || !poll) return;
     
     setIsLoading(true);
     
@@ -44,6 +58,7 @@ export default function PollPage({ params }: { params: { id: string } }) {
     setTimeout(() => {
       // Update the poll data with the new vote
       setPoll(prev => {
+        if (!prev) return prev;
         const updatedOptions = prev.options.map(option => {
           if (option.id === selectedOption) {
             return { ...option, votes: option.votes + 1 };
@@ -64,8 +79,38 @@ export default function PollPage({ params }: { params: { id: string } }) {
   };
 
   const calculatePercentage = (votes: number) => {
-    return poll.totalVotes > 0 ? Math.round((votes / poll.totalVotes) * 100) : 0;
+    return poll && poll.totalVotes > 0 ? Math.round((votes / poll.totalVotes) * 100) : 0;
   };
+
+  if (error) {
+    return (
+      <div className="container mx-auto py-8">
+        <Button variant="outline" className="mb-6" onClick={() => router.back()}>
+          ← Back to Polls
+        </Button>
+        <Card className="w-full max-w-3xl mx-auto">
+          <CardContent className="pt-6">
+            <p className="text-center text-red-600">{error}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!poll) {
+    return (
+      <div className="container mx-auto py-8">
+        <Button variant="outline" className="mb-6" onClick={() => router.back()}>
+          ← Back to Polls
+        </Button>
+        <Card className="w-full max-w-3xl mx-auto">
+          <CardContent className="pt-6">
+            <p className="text-center">Loading poll...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8">
