@@ -56,16 +56,16 @@ export default function RegisterPage() {
     setError(null);
     
     try {
-      const { data, error } = await signUp(values.email, values.password);
+      const result = await signUp(values.email, values.password);
       
-      if (error) {
-        setError(error.message);
+      if (!result.success) {
+        setError(result.error || 'An error occurred during registration');
         setIsLoading(false);
         return;
       }
       
       // Check if email confirmation is required
-      if (data.user && !data.user.email_confirmed_at) {
+      if (result.data?.user && !result.data.user.email_confirmed_at) {
         // Registration successful but email needs confirmation
         setIsLoading(false);
         router.push('/auth/login?registered=true&confirmation=required');

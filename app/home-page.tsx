@@ -1,99 +1,3 @@
-/**
- * ALX Poll Home Page - Interactive Landing Experience
- * 
- * This component serves as the primary entry point for the ALX Poll application,
- * providing users with an engaging, interactive introduction to the platform's
- * capabilities while driving key user actions and conversions.
- * 
- * ## Purpose & Context
- * 
- * The home page addresses several critical needs in the ALX Poll ecosystem:
- * 
- * 1. **User Onboarding**: First-time visitors need to understand what ALX Poll
- *    does and why they should use it. This page provides immediate value
- *    through interactive demos rather than just static marketing copy.
- * 
- * 2. **Authentication Flow**: The page adapts its content based on user
- *    authentication status, providing different CTAs for logged-in vs
- *    anonymous users, reducing friction in the user journey.
- * 
- * 3. **Platform Discovery**: Users can explore trending polls and see
- *    community activity, encouraging engagement and demonstrating the
- *    platform's active user base.
- * 
- * 4. **Feature Education**: Through interactive demos, users can experience
- *    the core polling functionality before committing to registration.
- * 
- * ## Key Assumptions
- * 
- * - **API Availability**: Assumes `/api/polls` endpoint is available and
- *   returns data in the expected format with `total`, `polls` array
- * - **Authentication State**: Relies on `useAuth` context providing accurate
- *   user state and loading status
- * - **User Intent**: Assumes visitors are either looking to create polls or
- *   participate in existing ones
- * - **Performance**: Assumes users have modern browsers supporting CSS
- *   animations and JavaScript features
- * 
- * ## Edge Cases Handled
- * 
- * - **API Failures**: Gracefully handles failed API calls with fallback
- *   values and loading states
- * - **Empty Data**: Displays appropriate messaging when no polls exist
- * - **Authentication Loading**: Shows loading states while auth status is
- *   being determined
- * - **Network Issues**: Provides fallback content when data fetching fails
- * - **Responsive Design**: Adapts layout for mobile, tablet, and desktop
- *   viewports
- * 
- * ## Component Integration
- * 
- * ### Dependencies:
- * - `useAuth` context: Provides user authentication state
- * - `InteractiveDemo`: Handles live poll demonstrations
- * - `AnimatedCounter`: Provides smooth number animations
- * - UI components: Button, Card, Badge for consistent styling
- * 
- * ### Data Flow:
- * 1. Fetches trending polls from `/api/polls?sort=popular&limit=6`
- * 2. Calculates aggregate statistics (total polls, votes, users)
- * 3. Renders content based on authentication state
- * 4. Provides navigation to key app sections
- * 
- * ### User Journey Integration:
- * - **Anonymous Users**: Guided to registration/login with compelling demos
- * - **Authenticated Users**: Directed to poll creation and exploration
- * - **Returning Users**: Can quickly access their polls or discover new ones
- * 
- * ## Performance Considerations
- * 
- * - **Lazy Loading**: Interactive demo only loads when component mounts
- * - **Efficient Re-renders**: Uses proper dependency arrays in useEffect
- * - **Animation Optimization**: Uses requestAnimationFrame for smooth counters
- * - **Image Optimization**: Leverages Next.js automatic image optimization
- * 
- * ## Accessibility Features
- * 
- * - **Semantic HTML**: Proper heading hierarchy and landmark elements
- * - **Keyboard Navigation**: All interactive elements are keyboard accessible
- * - **Screen Reader Support**: Descriptive text and ARIA labels
- * - **Color Contrast**: Meets WCAG guidelines for text readability
- * 
- * ## Future Enhancements
- * 
- * - **A/B Testing**: Different hero messages for different user segments
- * - **Personalization**: Show user-specific content for returning visitors
- * - **Analytics Integration**: Track user interactions and conversion funnels
- * - **Progressive Web App**: Add offline capabilities and push notifications
- * 
- * @component
- * @example
- * ```tsx
- * // The home page automatically adapts based on user state
- * <HomePage />
- * ```
- */
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -114,8 +18,6 @@ import {
   Lock,
   MessageSquare
 } from 'lucide-react';
-import { InteractiveDemo } from '@/components/interactive-demo';
-import { AnimatedCounter } from '@/components/animated-counter';
 
 interface FeaturedPoll {
   id: string;
@@ -280,25 +182,25 @@ export default function HomePage() {
 
             {/* Live Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
-              <div className="text-center p-4 bg-white/50 backdrop-blur-sm rounded-lg border hover:bg-white/70 transition-colors">
+              <div className="text-center p-4 bg-white/50 backdrop-blur-sm rounded-lg border">
                 <div className="text-2xl font-bold text-blue-600">
-                  {loading ? '...' : <AnimatedCounter value={stats?.totalPolls || 0} />}
+                  {loading ? '...' : stats?.totalPolls || 0}
                 </div>
                 <div className="text-sm text-muted-foreground">Active Polls</div>
               </div>
-              <div className="text-center p-4 bg-white/50 backdrop-blur-sm rounded-lg border hover:bg-white/70 transition-colors">
+              <div className="text-center p-4 bg-white/50 backdrop-blur-sm rounded-lg border">
                 <div className="text-2xl font-bold text-green-600">
-                  {loading ? '...' : <AnimatedCounter value={stats?.totalVotes || 0} />}
+                  {loading ? '...' : stats?.totalVotes || 0}
                 </div>
                 <div className="text-sm text-muted-foreground">Total Votes</div>
               </div>
-              <div className="text-center p-4 bg-white/50 backdrop-blur-sm rounded-lg border hover:bg-white/70 transition-colors">
+              <div className="text-center p-4 bg-white/50 backdrop-blur-sm rounded-lg border">
                 <div className="text-2xl font-bold text-purple-600">
-                  {loading ? '...' : <AnimatedCounter value={stats?.activeUsers || 0} />}
+                  {loading ? '...' : stats?.activeUsers || 0}
                 </div>
                 <div className="text-sm text-muted-foreground">Active Users</div>
               </div>
-              <div className="text-center p-4 bg-white/50 backdrop-blur-sm rounded-lg border hover:bg-white/70 transition-colors">
+              <div className="text-center p-4 bg-white/50 backdrop-blur-sm rounded-lg border">
                 <div className="text-2xl font-bold text-orange-600">
                   {currentTime.toLocaleTimeString()}
                 </div>
@@ -336,9 +238,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Interactive Demo */}
-      <InteractiveDemo />
 
       {/* Quick Actions */}
       <section className="py-16">

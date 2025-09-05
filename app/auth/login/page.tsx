@@ -61,15 +61,15 @@ export default function LoginPage() {
     setError(null);
     
     try {
-      const { error } = await signIn(values.email, values.password);
+      const result = await signIn(values.email, values.password);
       
-      if (error) {
+      if (!result.success) {
         // Handle specific error for email not confirmed
-        if (error.message.includes('Email not confirmed')) {
+        if (result.error?.includes('Email not confirmed')) {
           setError('Your email address has not been confirmed. Please check your inbox and click the confirmation link before logging in.');
           setUnconfirmedEmail(values.email);
         } else {
-          setError(error.message);
+          setError(result.error || 'An error occurred during login');
           setUnconfirmedEmail(null);
         }
         setIsLoading(false);
@@ -102,9 +102,9 @@ export default function LoginPage() {
                     onClick={async () => {
                       setResendLoading(true);
                       try {
-                        const { error } = await resendConfirmationEmail(unconfirmedEmail);
-                        if (error) {
-                          setError(`Failed to resend confirmation email: ${error.message}`);
+                        const result = await resendConfirmationEmail(unconfirmedEmail);
+                        if (!result.success) {
+                          setError(`Failed to resend confirmation email: ${result.error}`);
                         } else {
                           setSuccessMessage('Confirmation email has been resent. Please check your inbox.');
                           setError(null);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,16 @@ export default function CreatePollPage() {
 
   // Debug authentication state
   console.log('Auth state:', { user: !!user, isLoading, userEmail: user?.email });
+  
+  // Additional debugging
+  useEffect(() => {
+    console.log('Create poll page - Auth state changed:', { 
+      user: !!user, 
+      isLoading, 
+      userEmail: user?.email,
+      userId: user?.id 
+    });
+  }, [user, isLoading]);
 
   // Test authentication status
   const testAuth = async () => {
@@ -70,9 +80,24 @@ export default function CreatePollPage() {
   });
 
   async function onSubmit(values: FormValues) {
+    // Check authentication status
+    if (!user) {
+      setError('Please log in to create polls');
+      return;
+    }
+
     setIsSubmitting(true);
+    setError(null);
     
     try {
+      console.log('Submitting poll:', {
+        title: values.title,
+        description: values.description,
+        options: values.options.map(option => option.text),
+        endDate: values.endDate || null,
+        isPublic: values.isPublic,
+      });
+
       const response = await fetch('/api/polls', {
         method: 'POST',
         headers: {
@@ -87,8 +112,13 @@ export default function CreatePollPage() {
         }),
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('API Error:', errorData);
+        
         if (response.status === 401) {
           throw new Error('Please log in to create polls');
         }
@@ -96,6 +126,7 @@ export default function CreatePollPage() {
       }
 
       const result = await response.json();
+      console.log('Success result:', result);
       setError(null); // Clear any previous errors
       router.push(`/polls/${result.pollId}`);
     } catch (error) {

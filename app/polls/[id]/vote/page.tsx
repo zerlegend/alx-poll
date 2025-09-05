@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,53 +13,64 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/use-toast';
 import ProtectedRoute from '@/components/protected-route';
+import { supabase } from '@/lib/supabase';
 
-// Define the form schema using zod
+// Form validation schema
 const voteFormSchema = z.object({
-  optionId: z.string({
-    required_error: "You must select an option to vote",
-  }),
+  optionId: z.string().min(1, "Please select an option to vote"),
 });
 
 type VoteFormValues = z.infer<typeof voteFormSchema>;
 
-type Poll = {
+interface PollOption {
+  id: string;
+  text: string;
+}
+
+interface Poll {
   id: string;
   title: string;
   description: string | null;
   created_at: string;
   end_date: string | null;
-  options: {
-    id: string;
-    text: string;
-    votes_count?: number;
-  }[];
-};
+  options: PollOption[];
+}
+
+interface VotePageState {
+  poll: Poll | null;
+  loading: boolean;
+  submitting: boolean;
+  hasVoted: boolean;
+  error: string | null;
+}
 
 export default function VotePage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  const [poll, setPoll] = useState<Poll | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [hasVoted, setHasVoted] = useState(false);
-  const supabase = createClientComponentClient();
   
-  // Initialize form with react-hook-form and zod validation
-  const form = useForm<VoteFormValues>({
-    resolver: zodResolver(voteFormSchema),
-    defaultValues: {
-      optionId: "",
-    },
+  const [state, setState] = useState<VotePageState>({
+    poll: null,
+    loading: true,
+    submitting: false,
+    hasVoted: false,
+    error: null,
   });
 
-  // Fetch poll data
+  const form = useForm<VoteFormValues>({
+    resolver: zodResolver(voteFormSchema),
+    defaultValues: { optionId: "" },
+  });
+
+  // Fetch poll data and check voting status
   useEffect(() => {
-    async function fetchPoll() {
-      if (!params.id) return;
-      
+    const fetchPollData = async () => {
+      if (!params.id || !user) return;
+
       try {
+        setState(prev => ({ ...prev, loading: true, error: null }));
+
+        // Fetch poll with options
         const { data: pollData, error: pollError } = await supabase
           .from('polls')
           .select(`
@@ -74,182 +84,233 @@ export default function VotePage() {
           .eq('id', params.id)
           .single();
 
-        if (pollError) throw pollError;
-        
-        // Check if user has already voted
-        if (user) {
-          const { data: voteData, error: voteError } = await supabase
-            .from('votes')
-            .select('id')
-            .eq('poll_id', params.id)
-            .eq('user_id', user.id)
-            .single();
-          
-          if (!voteError) {
-            setHasVoted(true);
-            // Redirect to results page if already voted
-            router.push(`/polls/${params.id}/results`);
-          }
+        if (pollError) {
+          throw new Error('Poll not found or access denied');
         }
 
-        setPoll(pollData as Poll);
+        // Check if user has already voted
+        const { data: existingVote } = await supabase
+          .from('votes')
+          .select('id')
+          .eq('poll_id', params.id)
+          .eq('user_id', user.id)
+          .single();
+
+        setState(prev => ({
+          ...prev,
+          poll: pollData as Poll,
+          hasVoted: !!existingVote,
+          loading: false,
+        }));
+
+        // Redirect if already voted
+        if (existingVote) {
+          router.push(`/polls/${params.id}/results`);
+        }
+
       } catch (error) {
         console.error('Error fetching poll:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load poll data. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
+        setState(prev => ({
+          ...prev,
+          error: error instanceof Error ? error.message : 'Failed to load poll',
+          loading: false,
+        }));
       }
-    }
+    };
 
-    fetchPoll();
-  }, [params.id, supabase, user, router]);
+    fetchPollData();
+  }, [params.id, user, router]);
 
-  // Handle form submission
-  async function onSubmit(values: VoteFormValues) {
-    if (!user || !poll) return;
-    
-    setSubmitting(true);
-    
+  // Handle vote submission
+  const handleVoteSubmission = async (values: VoteFormValues) => {
+    if (!user || !state.poll) return;
+
+    setState(prev => ({ ...prev, submitting: true }));
+
     try {
-      // Insert vote into database
       const { error } = await supabase
         .from('votes')
         .insert({
-          poll_id: poll.id,
+          poll_id: state.poll.id,
           option_id: values.optionId,
           user_id: user.id,
         });
 
-      if (error) throw error;
-      
+      if (error) {
+        throw new Error(error.message);
+      }
+
       toast({
-        title: "Vote submitted",
-        description: "Your vote has been recorded successfully.",
+        title: "Vote submitted successfully!",
+        description: "Your vote has been recorded.",
       });
-      
-      // Redirect to results page
-      router.push(`/polls/${poll.id}/results`);
+
+      // Redirect to results
+      router.push(`/polls/${state.poll.id}/results`);
+
     } catch (error) {
       console.error('Error submitting vote:', error);
       toast({
-        title: "Error",
-        description: "Failed to submit your vote. Please try again.",
+        title: "Vote submission failed",
+        description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
     } finally {
-      setSubmitting(false);
+      setState(prev => ({ ...prev, submitting: false }));
     }
-  }
+  };
 
-  // Show loading state
-  if (loading) {
+  // Loading state
+  if (state.loading) {
     return (
-      <Card className="w-full max-w-2xl mx-auto mt-8">
-        <CardHeader>
-          <Skeleton className="h-8 w-3/4 mb-2" />
-          <Skeleton className="h-4 w-1/2" />
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="container mx-auto py-8">
+        <Card className="w-full max-w-2xl mx-auto">
+          <CardHeader>
+            <Skeleton className="h-8 w-3/4 mb-2" />
+            <Skeleton className="h-4 w-1/2" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
-  // Show error if poll not found
-  if (!poll) {
+  // Error state
+  if (state.error || !state.poll) {
     return (
-      <Card className="w-full max-w-2xl mx-auto mt-8">
-        <CardHeader>
-          <CardTitle>Poll Not Found</CardTitle>
-          <CardDescription>The poll you're looking for doesn't exist or has been removed.</CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button onClick={() => router.push('/polls')}>Back to Polls</Button>
-        </CardFooter>
-      </Card>
+      <div className="container mx-auto py-8">
+        <Card className="w-full max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle>Poll Not Found</CardTitle>
+            <CardDescription>
+              {state.error || "The poll you're looking for doesn't exist or has been removed."}
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button onClick={() => router.push('/polls')}>
+              Back to Polls
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
     );
   }
 
-  // Check if poll has ended
-  const isPollEnded = poll.end_date && new Date(poll.end_date) < new Date();
+  const isPollEnded = state.poll.end_date && new Date(state.poll.end_date) < new Date();
 
   return (
     <ProtectedRoute>
-      <Card className="w-full max-w-2xl mx-auto mt-8">
-        <CardHeader>
-          <CardTitle>{poll.title}</CardTitle>
-          {poll.description && (
-            <CardDescription>{poll.description}</CardDescription>
-          )}
-        </CardHeader>
-        
-        <CardContent>
-          {isPollEnded ? (
-            <div className="text-center py-6">
-              <p className="text-lg font-medium mb-4">This poll has ended</p>
-              <Button onClick={() => router.push(`/polls/${poll.id}/results`)}>View Results</Button>
-            </div>
-          ) : hasVoted ? (
-            <div className="text-center py-6">
-              <p className="text-lg font-medium mb-4">You have already voted in this poll</p>
-              <Button onClick={() => router.push(`/polls/${poll.id}/results`)}>View Results</Button>
-            </div>
-          ) : (
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="optionId"
-                  render={({ field }) => (
-                    <FormItem className="space-y-3">
-                      <FormLabel>Select an option</FormLabel>
-                      <FormControl>
-                        <RadioGroup
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                          className="space-y-3"
-                        >
-                          {poll.options.map((option) => (
-                            <FormItem
-                              key={option.id}
-                              className="flex items-center space-x-3 space-y-0"
-                            >
-                              <FormControl>
-                                <RadioGroupItem value={option.id} />
-                              </FormControl>
-                              <FormLabel className="font-normal">
-                                {option.text}
-                              </FormLabel>
-                            </FormItem>
-                          ))}
-                        </RadioGroup>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? "Submitting..." : "Submit Vote"}
+      <div className="container mx-auto py-8">
+        <Card className="w-full max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle className="text-2xl">{state.poll.title}</CardTitle>
+            {state.poll.description && (
+              <CardDescription className="text-base">
+                {state.poll.description}
+              </CardDescription>
+            )}
+            {isPollEnded && (
+              <div className="mt-2 p-2 bg-yellow-100 text-yellow-800 rounded-md text-sm">
+                This poll ended on {new Date(state.poll.end_date!).toLocaleDateString()}
+              </div>
+            )}
+          </CardHeader>
+          
+          <CardContent>
+            {isPollEnded ? (
+              <div className="text-center py-8">
+                <p className="text-lg font-medium mb-4 text-muted-foreground">
+                  This poll has ended
+                </p>
+                <Button onClick={() => router.push(`/polls/${state.poll?.id}/results`)}>
+                  View Results
                 </Button>
-              </form>
-            </Form>
-          )}
-        </CardContent>
-        
-        <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={() => router.push('/polls')}>Back to Polls</Button>
-          <Button variant="outline" onClick={() => router.push(`/polls/${poll.id}/results`)}>View Results</Button>
-        </CardFooter>
-      </Card>
+              </div>
+            ) : state.hasVoted ? (
+              <div className="text-center py-8">
+                <p className="text-lg font-medium mb-4 text-green-600">
+                  ✓ You have already voted in this poll
+                </p>
+                <Button onClick={() => router.push(`/polls/${state.poll?.id}/results`)}>
+                  View Results
+                </Button>
+              </div>
+            ) : (
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleVoteSubmission)} className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="optionId"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel className="text-lg font-medium">
+                          Select your choice:
+                        </FormLabel>
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            className="space-y-3"
+                          >
+                            {state.poll?.options.map((option, index) => (
+                              <FormItem
+                                key={option.id}
+                                className="flex items-center space-x-3 space-y-0 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                              >
+                                <FormControl>
+                                  <RadioGroupItem value={option.id} />
+                                </FormControl>
+                                <FormLabel className="font-normal cursor-pointer flex-1">
+                                  <span className="font-medium text-muted-foreground mr-2">
+                                    {String.fromCharCode(65 + index)}.
+                                  </span>
+                                  {option.text}
+                                </FormLabel>
+                              </FormItem>
+                            ))}
+                          </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="flex gap-3 pt-4">
+                    <Button 
+                      type="submit" 
+                      disabled={state.submitting}
+                      className="flex-1"
+                    >
+                      {state.submitting ? "Submitting..." : "Submit Vote"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            )}
+          </CardContent>
+          
+          <CardFooter className="flex justify-between pt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/polls')}
+            >
+              ← Back to Polls
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => router.push(`/polls/${state.poll?.id}/results`)}
+            >
+              View Results →
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
     </ProtectedRoute>
   );
 }
